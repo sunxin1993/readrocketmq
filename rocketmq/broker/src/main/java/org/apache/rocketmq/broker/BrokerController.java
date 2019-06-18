@@ -174,7 +174,7 @@ public class BrokerController {
         this.nettyServerConfig = nettyServerConfig;
         this.nettyClientConfig = nettyClientConfig;
         this.messageStoreConfig = messageStoreConfig;
-        //消消费者消息进度管理
+        //消费者消息进度管理
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
         //主体配置的相关信息 创建多个topicname对应的topicConfig 对于TBW102主题是根据broker设置的是否允许手动创建topic创建的
         //内部一个topicConfigTable维护所有的topicConfig
