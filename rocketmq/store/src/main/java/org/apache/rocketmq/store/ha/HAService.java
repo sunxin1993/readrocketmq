@@ -400,6 +400,7 @@ public class HAService {
             this.byteBufferBackup = tmp;
         }
 
+        //处理master节点发送过来的消息
         private boolean processReadEvent() {
             int readSizeZeroTimes = 0;
             while (this.byteBufferRead.hasRemaining()) {
