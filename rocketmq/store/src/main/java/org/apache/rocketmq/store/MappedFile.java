@@ -251,6 +251,7 @@ public class MappedFile extends ReferenceResource {
             try {
                 this.fileChannel.position(currentPos);
                 this.fileChannel.write(ByteBuffer.wrap(data));
+
             } catch (Throwable e) {
                 log.error("Error occurred when append message to mappedFile.", e);
             }
