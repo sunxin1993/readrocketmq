@@ -86,7 +86,9 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
             @Override
             public void run() {
+                //todo
                 cleanExpireMsg();
+                //15ms后每15min执行一次
             }
 
         }, this.defaultMQPushConsumer.getConsumeTimeout(), this.defaultMQPushConsumer.getConsumeTimeout(), TimeUnit.MINUTES);
@@ -245,6 +247,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             }
         }
     }
+
+
 
     private void cleanExpireMsg() {
         Iterator<Map.Entry<MessageQueue, ProcessQueue>> it =

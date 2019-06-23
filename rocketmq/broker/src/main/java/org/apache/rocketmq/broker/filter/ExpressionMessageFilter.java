@@ -138,6 +138,7 @@ public class ExpressionMessageFilter implements MessageFilter {
         }
 
         if (tempProperties == null && msgBuffer != null) {
+            //读出来properties
             tempProperties = MessageDecoder.decodeProperties(msgBuffer);
         }
 

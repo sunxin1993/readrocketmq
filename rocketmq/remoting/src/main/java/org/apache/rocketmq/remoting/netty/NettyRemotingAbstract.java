@@ -434,7 +434,7 @@ public abstract class NettyRemotingAbstract {
                             } else {
                             //this.countDownLatch.countDown() 赋值cmd
                                 responseFuture.putResponse(cmd);
-                                //待解释
+                                //release信号量 控制请求的数目
                                 responseFuture.release();
                             }*/
                         return;
@@ -474,6 +474,7 @@ public abstract class NettyRemotingAbstract {
         throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         long beginStartTime = System.currentTimeMillis();
         final int opaque = request.getOpaque();
+        //尝试获取许可 Semaphore控制最大进行的异步请求的数目  默认65535
         boolean acquired = this.semaphoreAsync.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
         if (acquired) {
             final SemaphoreReleaseOnlyOnce once = new SemaphoreReleaseOnlyOnce(this.semaphoreAsync);
@@ -490,19 +491,25 @@ public abstract class NettyRemotingAbstract {
                     @Override
                     public void operationComplete(ChannelFuture f) throws Exception {
                         if (f.isSuccess()) {
+                            //异步写入
+                            //NettyRemotingClient.NettyClientHandler处理
+                            //异步线程池处理
+                            //调用的operationComplete方法
                             responseFuture.setSendRequestOK(true);
                             return;
-                        }
+                        }//fail 从responseTable移除responseFuturerelease信号量   成功的请求处理完才会release信号量
                         requestFail(opaque);
                         log.warn("send a request command to channel <{}> failed.", RemotingHelper.parseChannelRemoteAddr(channel));
                     }
                 });
             } catch (Exception e) {
+                //如果出现异常 release信号量
                 responseFuture.release();
                 log.warn("send a request command to channel <" + RemotingHelper.parseChannelRemoteAddr(channel) + "> Exception", e);
                 throw new RemotingSendRequestException(RemotingHelper.parseChannelRemoteAddr(channel), e);
             }
         } else {
+            //抛出异常 日志打印
             if (timeoutMillis <= 0) {
                 throw new RemotingTooMuchRequestException("invokeAsyncImpl invoke too fast");
             } else {

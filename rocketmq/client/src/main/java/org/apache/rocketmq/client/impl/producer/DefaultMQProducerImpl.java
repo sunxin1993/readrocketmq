@@ -176,11 +176,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 this.serviceState = ServiceState.START_FAILED;
                  //对groupName进行格式校验 只能包含数字 字母 下划线
                 this.checkConfig();
-                //把instancename设置为PID
+                //把instancename设置为PID MQProducer的实例  MQClient实例是ip+pid
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
 
+                //创建MQClientInstance
                 this.mQClientFactory = MQClientManager.getInstance().getAndCreateMQClientInstance(this.defaultMQProducer, rpcHook);
               //MQClientinstance内部维护ConcurrentMap<String/* group */, MQProducerInner> producerTable  查看当前组名生产者是否存在
               //存在则抛出异常

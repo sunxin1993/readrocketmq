@@ -78,6 +78,7 @@ public class ProcessQueue {
             return;
         }
 
+//最多循环16次
         int loop = msgTreeMap.size() < 16 ? msgTreeMap.size() : 16;
         for (int i = 0; i < loop; i++) {
             MessageExt msg = null;

@@ -106,13 +106,16 @@ public class ConsumerManager {
             consumerGroupInfo = prev != null ? prev : tmp;
         }
 
+        //channelInfoTable 里面channel和ClientChannelInfo是否改变了 第一次为true
         boolean r1 =
             consumerGroupInfo.updateChannel(clientChannelInfo, consumeType, messageModel,
                 consumeFromWhere);
+        //subscriptionTable 维护topic对应的订阅信息List 第一次为true
         boolean r2 = consumerGroupInfo.updateSubscription(subList);
 
         if (r1 || r2) {
             if (isNotifyConsumerIdsChangedEnable) {
+                // 所有连接的conusmer channel发送单向消息 RequestCode.NOTIFY_CONSUMER_IDS_CHANGED
                 this.consumerIdsChangeListener.handle(ConsumerGroupEvent.CHANGE, group, consumerGroupInfo.getAllChannel());
             }
         }

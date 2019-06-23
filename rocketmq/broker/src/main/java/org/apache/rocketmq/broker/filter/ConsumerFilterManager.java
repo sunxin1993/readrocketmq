@@ -91,6 +91,7 @@ public class ConsumerFilterManager extends ConfigManager {
         consumerFilterData.setClientVersion(clientVersion);
         try {
             consumerFilterData.setCompiledExpression(
+                    //编译sqlfilter
                 FilterFactory.INSTANCE.get(type).compile(expression)
             );
         } catch (Throwable e) {

@@ -527,10 +527,11 @@ public class DefaultMessageStore implements MessageStore {
         final long maxOffsetPy = this.commitLog.getMaxOffset();
 
         ConsumeQueue consumeQueue = findConsumeQueue(topic, queueId);
+        //首先检验消息是否在当前messageQueue
         if (consumeQueue != null) {
             minOffset = consumeQueue.getMinOffsetInQueue();
             maxOffset = consumeQueue.getMaxOffsetInQueue();
-
+             //consumeQueue还没有写入message 如果是master nextBeginOffset=minOffset
             if (maxOffset == 0) {
                 status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
                 nextBeginOffset = nextOffsetCorrection(offset, 0);
@@ -548,6 +549,7 @@ public class DefaultMessageStore implements MessageStore {
                     nextBeginOffset = nextOffsetCorrection(offset, maxOffset);
                 }
             } else {
+                //SelectMappedBufferResult mappedFile获取的conusmeQueue里面的信息 可能记载多个message
                 SelectMappedBufferResult bufferConsumeQueue = consumeQueue.getIndexBuffer(offset);
                 if (bufferConsumeQueue != null) {
                     try {
@@ -557,7 +559,9 @@ public class DefaultMessageStore implements MessageStore {
                         long maxPhyOffsetPulling = 0;
 
                         int i = 0;
+                        //最大过滤16000个byte的记录 客户端默认是30*20
                         final int maxFilterMessageCount = Math.max(16000, maxMsgNums * ConsumeQueue.CQ_STORE_UNIT_SIZE);
+                        //default rue
                         final boolean diskFallRecorded = this.messageStoreConfig.isDiskFallRecorded();
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                         for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
@@ -571,16 +575,21 @@ public class DefaultMessageStore implements MessageStore {
                                 if (offsetPy < nextPhyFileStartOffset)
                                     continue;
                             }
-
+                            //todo how  ？？？？
+                            //暂时的判定方式是 跟在commitLog里面写入mappedFile的最大内存offset差距是否大于总的可用物理内存的0.4 如果大于 认为在disk
+                            //如果在disk 单次传输的消息数量和总字节数限制的比较小
                             boolean isInDisk = checkInDiskByCommitOffset(offsetPy, maxOffsetPy);
 
+                            //是否超过一次可以传输的最大量
                             if (this.isTheBatchFull(sizePy, maxMsgNums, getResult.getBufferTotalSize(), getResult.getMessageCount(),
                                 isInDisk)) {
                                 break;
                             }
 
                             boolean extRet = false, isTagsCodeLegal = true;
+                            //是否有效 true   是否小于Integer.MIN_VALUE - 1L
                             if (consumeQueue.isExtAddr(tagsCode)) {
+                                //todo
                                 extRet = consumeQueue.getExt(tagsCode, cqExtUnit);
                                 if (extRet) {
                                     tagsCode = cqExtUnit.getTagsCode();
@@ -592,6 +601,7 @@ public class DefaultMessageStore implements MessageStore {
                                 }
                             }
 
+                            //根据tagsHashCode 过滤
                             if (messageFilter != null
                                 && !messageFilter.isMatchedByConsumeQueue(isTagsCodeLegal ? tagsCode : null, extRet ? cqExtUnit : null)) {
                                 if (getResult.getBufferTotalSize() == 0) {
@@ -601,17 +611,22 @@ public class DefaultMessageStore implements MessageStore {
                                 continue;
                             }
 
+                            //获取真正的message实体
                             SelectMappedBufferResult selectResult = this.commitLog.getMessage(offsetPy, sizePy);
                             if (null == selectResult) {
                                 if (getResult.getBufferTotalSize() == 0) {
                                     status = GetMessageStatus.MESSAGE_WAS_REMOVING;
                                 }
 
+
+                                //下个mappedFile的起始offset
                                 nextPhyFileStartOffset = this.commitLog.rollNextFile(offsetPy);
                                 continue;
                             }
 
-                            if (messageFilter != null
+                         //properties根据sql语句进行过滤
+                            //todo
+                                                        if (messageFilter != null
                                 && !messageFilter.isMatchedByCommitLog(selectResult.getByteBuffer().slice(), null)) {
                                 if (getResult.getBufferTotalSize() == 0) {
                                     status = GetMessageStatus.NO_MATCHED_MESSAGE;
@@ -627,16 +642,21 @@ public class DefaultMessageStore implements MessageStore {
                             nextPhyFileStartOffset = Long.MIN_VALUE;
                         }
 
+                        /*=====================================================================================================*/
+
                         if (diskFallRecorded) {
+                            //消费落后生产者的进度  打印监控使用
                             long fallBehind = maxOffsetPy - maxPhyOffsetPulling;
                             brokerStatsManager.recordDiskFallBehindSize(group, topic, queueId, fallBehind);
                         }
 
+                        //下次消费的起始offset
                         nextBeginOffset = offset + (i / ConsumeQueue.CQ_STORE_UNIT_SIZE);
 
                         long diff = maxOffsetPy - maxPhyOffsetPulling;
                         long memory = (long) (StoreUtil.TOTAL_PHYSICAL_MEMORY_SIZE
                             * (this.messageStoreConfig.getAccessMessageInMemoryMaxRatio() / 100.0));
+                        //如果落后当前节点的进度 offset 已经大于 （总物理内存*0.4）也就是mq认为再次拉取消息将从disk获取 所以建议去slave节点获取消息
                         getResult.setSuggestPullingFromSlave(diff > memory);
                     } finally {
 
@@ -654,6 +674,7 @@ public class DefaultMessageStore implements MessageStore {
             nextBeginOffset = nextOffsetCorrection(offset, 0);
         }
 
+        //记录拉取消息的相关信息 包括成功次数和失败次数  拉取消息耗时
         if (GetMessageStatus.FOUND == status) {
             this.storeStatsService.getGetMessageTimesTotalFound().incrementAndGet();
         } else {
@@ -1194,24 +1215,26 @@ public class DefaultMessageStore implements MessageStore {
         if (0 == bufferTotal || 0 == messageTotal) {
             return false;
         }
-
+        //是否超过conusmer最大接受的batchSize
         if (maxMsgNums <= messageTotal) {
             return true;
         }
 
+        //硬盘上的消息一次最多传输64k
         if (isInDisk) {
             if ((bufferTotal + sizePy) > this.messageStoreConfig.getMaxTransferBytesOnMessageInDisk()) {
                 return true;
             }
-
+          //硬盘上的消息一次最多传递8个
             if (messageTotal > this.messageStoreConfig.getMaxTransferCountOnMessageInDisk() - 1) {
                 return true;
             }
         } else {
+            //内存中的256k
             if ((bufferTotal + sizePy) > this.messageStoreConfig.getMaxTransferBytesOnMessageInMemory()) {
                 return true;
             }
-
+        //内存中的32个
             if (messageTotal > this.messageStoreConfig.getMaxTransferCountOnMessageInMemory() - 1) {
                 return true;
             }

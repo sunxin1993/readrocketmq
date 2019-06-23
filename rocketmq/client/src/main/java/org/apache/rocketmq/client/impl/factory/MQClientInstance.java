@@ -248,11 +248,29 @@ public class MQClientInstance {
 
                     // Start various schedule tasks
                     //如果nameserver地址不存在定时去拉取nameserver地址
+
+                    //每隔30s去nameserver请求更新topic信息
+
+                    //每隔30s 更新已经下线的broker 根据nameserver里面请求回来的topic信息
+
+                    //如果是producer 发送给其他的masterbroker心跳包 producerGroup
+                    //如果是conusmer 发送给所有broker订阅的相关信息
+
+                    //每5s把每个messageQueue对应的消费进度持久化
+
+                    //todo 每1分钟
+                    /*DefaultMQPushConsumerImpl dmq = (DefaultMQPushConsumerImpl) impl;
+                    dmq.adjustThreadPool();*/
+
+
                     this.startScheduledTask();
                     // Start pull service
-                    //pullRequest的处理 后续解析
+                    //pullMessageService的pullRequestQueue获取PullRequest
+                    //根据pullRequest里面的offset去broker拉取消息
+                    //todo
                     this.pullMessageService.start();
                     // Start rebalance service 后续解析
+                    //todo
                     this.rebalanceService.start();
                     // Start push service
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
@@ -547,6 +565,8 @@ public class MQClientInstance {
                         Long id = entry1.getKey();
                         String addr = entry1.getValue();
                         if (addr != null) {
+                            //如果是producer 那么只会发送给MASTER节点  id=0
+                            //如果是conusmer 那么发送给所有的broker 包括主从broker
                             if (consumerEmpty) {
                                 if (id != MixAll.MASTER_ID)
                                     continue;
@@ -557,6 +577,7 @@ public class MQClientInstance {
                                 if (!this.brokerVersionTable.containsKey(brokerName)) {
                                     this.brokerVersionTable.put(brokerName, new HashMap<String, Integer>(4));
                                 }
+                                //维护发送给各个broker的version 递增
                                 this.brokerVersionTable.get(brokerName).put(addr, version);
                                 if (times % 20 == 0) {
                                     log.info("send heart beat to broker[{} {} {}] success", brokerName, id, addr);
@@ -688,6 +709,13 @@ public class MQClientInstance {
 
         return false;
     }
+
+    //心跳数据
+
+    //producer 当前broker的所有group +clientId （ip+pid）
+
+    //consumer  当前机器上的的 consumer信息
+
 
     private HeartbeatData prepareHeartbeatData() {
         HeartbeatData heartbeatData = new HeartbeatData();
