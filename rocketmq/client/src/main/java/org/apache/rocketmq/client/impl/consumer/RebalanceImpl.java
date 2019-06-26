@@ -339,7 +339,7 @@ public abstract class RebalanceImpl {
         }
     }
 
-    //todo 
+    //mqset代表可以处理的所有的messageQueue
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet,
         final boolean isOrder) {
         boolean changed = false;
@@ -351,26 +351,37 @@ public abstract class RebalanceImpl {
             ProcessQueue pq = next.getValue();
 
             if (mq.getTopic().equals(topic)) {
+                //如果是不能消费的messageQueue
                 if (!mqSet.contains(mq)) {
-                    //设置dropeed的processQueue里面的消息 conusmer不会消费
+                    //设置dropeed的processQueue里面的消息
                     pq.setDropped(true);
+                    //push===============================//
+                    //================================clusting order==================
+                    //1.把对应的消费offset发送给master broker 通知broker更新消费offset
+                    //2.offsetTable移除不能消耗的messageQueue
+                    /*尝试获取processQueue的lockConsume即消费锁
+                    *3.如果获取成功 查看当前processQueue是否还有未处理的消息
+                    * 3.1 如果有消息  20s后尝试通知broker unlock当前messageQueue的全局锁
+                    * 3.2 如果没有消息 通知一次broker unlock全局锁
+                    * 3.3 释放消费锁
+                    * 4.没有获取到锁 增加processQueue的TryUnlockTimes值
+                    * 5.返回false*/
+                    //================================clusting Noorder==================
+                    /*执行 1 2 返回true*/
+                    //================================ broadcast order|| noorder==================
+                    /*do nothing  return true*/
+                    //================================ pull clursting==================
+                    /*1 2 返回true*/
+                    //================================ pull broadcast==================
+                    /*do nothing  return true*/
 
-                    //push
-
-                    //移除不能消耗的messageQueue
-                    //首先把对应的消费情况发送给masterbroker通知broker更新消费offset
-                    //把消费消息从offsetTable移除
-                    // 如果是有序并且是Clustering 尝试lockProcessQueue（是否处于有序消费中）
-                    //如果tryLock成功  单向通知broker Unlock当前messageQueue
-
-                    //pull clusting模式下 通知broker更新消费offset，从offsetTable移除
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
-                        //从processQueueTable移除
+                     //除了push下的order模式 都会从processQueueTable移除 但是会设置drop 并且通知broker unlock
                         it.remove();
                         changed = true;
                         log.info("doRebalance, {}, remove unnecessary mq, {}", consumerGroup, mq);
                     }
-                    //如果距离上次pull的时间大于2min 没有发起pull
+                    //如果距离上次pull的时间大于2min
                 } else if (pq.isPullExpired()) {
                     switch (this.consumeType()) {
                         case CONSUME_ACTIVELY:
@@ -395,8 +406,9 @@ public abstract class RebalanceImpl {
         //所有可以处理的messageQueue
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
+            //如果是新加入的messageQueue
             if (!this.processQueueTable.containsKey(mq)) {
-                //如果是有序的 并且再broker端没有被lock
+                //如果是有序的   并且在broker端没有被当前conusmer lock 那么就不会主动消费
                 if (isOrder && !this.lock(mq)) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;
@@ -429,7 +441,7 @@ public abstract class RebalanceImpl {
             }
         }
 
-        //直接交给PullMessageService来处理
+        //直接交给Pull或者pushMessageService来处理
         this.dispatchPullRequest(pullRequestList);
 
         return changed;

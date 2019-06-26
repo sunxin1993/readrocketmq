@@ -128,6 +128,7 @@ public class ProcessQueue {
         }
     }
 
+    //放入消息
     public boolean putMessage(final List<MessageExt> msgs) {
         boolean dispatchToConsume = false;
         try {
@@ -135,8 +136,10 @@ public class ProcessQueue {
             try {
                 int validMsgCnt = 0;
                 for (MessageExt msg : msgs) {
+                    //消息放入msgTreeMap
                     MessageExt old = msgTreeMap.put(msg.getQueueOffset(), msg);
                     if (null == old) {
+                        //有效的消息数目
                         validMsgCnt++;
                         this.queueOffsetMax = msg.getQueueOffset();
                         msgSize.addAndGet(msg.getBody().length);
@@ -186,6 +189,10 @@ public class ProcessQueue {
         return 0;
     }
 
+    //移除已经成功处理过后的消息
+    // 如果移除后不为空 返回的值是移除后最小的offset
+    //如果为空 返回的值为移除前最大的offset+1
+    //移除失败 返回-1
     public long removeMessage(final List<MessageExt> msgs) {
         long result = -1;
         final long now = System.currentTimeMillis();

@@ -267,6 +267,7 @@ public class TopicConfigManager extends ConfigManager {
         }
 
         if (createNew) {
+            //构建的topicConfigTable注册到所有的broker
             this.brokerController.registerBrokerAll(false, true,true);
         }
 

@@ -271,7 +271,6 @@ public class MQClientInstance {
                     //提交给consumeMessageService
                     this.pullMessageService.start();
                     // Start rebalance service 后续解析
-                    //todo 消费者逻辑
                     this.rebalanceService.start();
                     // Start push service
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);

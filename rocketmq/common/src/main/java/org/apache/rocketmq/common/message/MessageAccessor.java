@@ -33,7 +33,7 @@ public class MessageAccessor {
         putProperty(msg, MessageConst.PROPERTY_TRANSFER_FLAG, unit);
     }
 
-    public static void putProperty(final Message msg, final String name, final String value) {
+    public static void  putProperty(final Message msg, final String name, final String value) {
         msg.putProperty(name, value);
     }
 

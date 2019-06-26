@@ -947,6 +947,7 @@ public class MQClientAPIImpl {
         return response.getCode() == ResponseCode.SUCCESS;
     }
 
+    //消费失败或者过期消息重新发回broker
     public void consumerSendMessageBack(
         final String addr,
         final MessageExt msg,
@@ -956,7 +957,7 @@ public class MQClientAPIImpl {
         final int maxConsumeRetryTimes
     ) throws RemotingException, MQBrokerException, InterruptedException {
         ConsumerSendMsgBackRequestHeader requestHeader = new ConsumerSendMsgBackRequestHeader();
-        //todo
+        //消息发回broker 顺序写入commitLog  新的topic "group"+%retry% 后台有单独线程拉取
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.CONSUMER_SEND_MSG_BACK, requestHeader);
 
         requestHeader.setGroup(consumerGroup);
@@ -964,6 +965,7 @@ public class MQClientAPIImpl {
         requestHeader.setOffset(msg.getCommitLogOffset());
         requestHeader.setDelayLevel(delayLevel);
         requestHeader.setOriginMsgId(msg.getMsgId());
+        //16
         requestHeader.setMaxReconsumeTimes(maxConsumeRetryTimes);
 
         //使用vipChannel把过期消息发回原来的broker

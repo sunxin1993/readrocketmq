@@ -95,6 +95,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             this.brokerController.getMessageStore().isTransientStorePoolDeficient();
     }
 
+    //处理conusmer消费失败或者过期发回来的消息
     private RemotingCommand consumerSendMsgBack(final ChannelHandlerContext ctx, final RemotingCommand request)
         throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
@@ -128,13 +129,16 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             return response;
         }
 
+        //默认是 1
         if (subscriptionGroupConfig.getRetryQueueNums() <= 0) {
             response.setCode(ResponseCode.SUCCESS);
             response.setRemark(null);
             return response;
         }
 
+        // "%RETRY%"+group
         String newTopic = MixAll.getRetryTopic(requestHeader.getGroup());
+        //随机数
         int queueIdInt = Math.abs(this.random.nextInt() % 99999999) % subscriptionGroupConfig.getRetryQueueNums();
 
         int topicSysFlag = 0;
@@ -142,6 +146,8 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
         }
 
+        //在topicConfigTable加入新的topic  "%RETRY%"+group  只有一个MessageQueue
+        //然后把新的topicConfigTable 发送个所有的broker
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
             newTopic,
             subscriptionGroupConfig.getRetryQueueNums(),
@@ -158,6 +164,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             return response;
         }
 
+        //找到旧的原始消息
         MessageExt msgExt = this.brokerController.getMessageStore().lookMessageByOffset(requestHeader.getOffset());
         if (null == msgExt) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
@@ -165,6 +172,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             return response;
         }
 
+        //原始的topic放入MessageConst.PROPERTY_RETRY_TOPIC 属性里面
         final String retryTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
         if (null == retryTopic) {
             MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC, msgExt.getTopic());
@@ -194,6 +202,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             }
         } else {
             if (0 == delayLevel) {
+                // =3
                 delayLevel = 3 + msgExt.getReconsumeTimes();
             }
 
@@ -213,14 +222,17 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         msgInner.setBornTimestamp(msgExt.getBornTimestamp());
         msgInner.setBornHost(msgExt.getBornHost());
         msgInner.setStoreHost(this.getStoreHost());
+        //递增
         msgInner.setReconsumeTimes(msgExt.getReconsumeTimes() + 1);
 
         String originMsgId = MessageAccessor.getOriginMessageId(msgExt);
         MessageAccessor.setOriginMessageId(msgInner, UtilAll.isBlank(originMsgId) ? msgExt.getMsgId() : originMsgId);
 
+        //写入到commitLog 后台线程会创建 conusmeQueue indexFile HA
         PutMessageResult putMessageResult = this.brokerController.getMessageStore().putMessage(msgInner);
         if (putMessageResult != null) {
             switch (putMessageResult.getPutMessageStatus()) {
+                //成功放进commitLog
                 case PUT_OK:
                     String backTopic = msgExt.getTopic();
                     String correctTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
@@ -228,6 +240,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                         backTopic = correctTopic;
                     }
 
+                    //数据统计
                     this.brokerController.getBrokerStatsManager().incSendBackNums(requestHeader.getGroup(), backTopic);
 
                     response.setCode(ResponseCode.SUCCESS);
