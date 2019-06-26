@@ -59,6 +59,7 @@ public class ClientManageProcessor implements NettyRequestProcessor {
                 return this.heartBeat(ctx, request);
             case RequestCode.UNREGISTER_CLIENT:
                 return this.unregisterClient(ctx, request);
+                //consumer消费消息之前会校验 校验各个broker是否支持订阅方的配置
             case RequestCode.CHECK_CLIENT_CONFIG:
                 return this.checkClientConfig(ctx, request);
             default:

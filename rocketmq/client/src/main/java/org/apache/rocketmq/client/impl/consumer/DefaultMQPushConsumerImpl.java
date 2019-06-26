@@ -514,9 +514,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         try {
             String brokerAddr = (null != brokerName) ? this.mQClientFactory.findBrokerAddressInPublish(brokerName)
                 : RemotingHelper.parseSocketAddressAddr(msg.getStoreHost());
+            //使用vipChannel把过期消息发回原来的broker
             this.mQClientFactory.getMQClientAPIImpl().consumerSendMessageBack(brokerAddr, msg,
                 this.defaultMQPushConsumer.getConsumerGroup(), delayLevel, 5000, getMaxReconsumeTimes());
         } catch (Exception e) {
+            //出现异常  当做正常消息发送给topic下的broker（不一定是原来的broker）
             log.error("sendMessageBack Exception, " + this.defaultMQPushConsumer.getConsumerGroup(), e);
 
             Message newMsg = new Message(MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup()), msg.getBody());
@@ -613,7 +615,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
                 this.offsetStore.load();
 
-                //是否是顺序接收消息
+                //是否是顺序接收消息 默认是非顺序
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService =
@@ -652,9 +654,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 break;
         }
 
+        //跟nameserver获取最新的topicRoute
         this.updateTopicSubscribeInfoWhenSubscriptionChanged();
+        //校验各个broker是否支持订阅方的配置
         this.mQClientFactory.checkClientInBroker();
+        //发送心跳包和上传filterClass
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
+        //todo
         this.mQClientFactory.rebalanceImmediately();
     }
 

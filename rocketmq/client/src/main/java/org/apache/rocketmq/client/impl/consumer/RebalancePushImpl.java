@@ -83,13 +83,24 @@ public class RebalancePushImpl extends RebalanceImpl {
 
     @Override
     public boolean removeUnnecessaryMessageQueue(MessageQueue mq, ProcessQueue pq) {
+
+        //如果是clustering
+        //把当前topic group messageQueue消费的偏移量通知给broker
+
         this.defaultMQPushConsumerImpl.getOffsetStore().persist(mq);
+
+        //offsetTable移除
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
+
+        //如果是有序并且是Clustering
         if (this.defaultMQPushConsumerImpl.isConsumeOrderly()
             && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
             try {
+                //尝试锁住processQueue
+                //lock的方法在ConsumeMessageOrderlyService消费消息会lock 如果没有try成功 可能还在有序消费中
                 if (pq.getLockConsume().tryLock(1000, TimeUnit.MILLISECONDS)) {
                     try {
+                        //通知broker把当前messageQueue unlock 直接返回true
                         return this.unlockDelay(mq, pq);
                     } finally {
                         pq.getLockConsume().unlock();
@@ -113,6 +124,7 @@ public class RebalancePushImpl extends RebalanceImpl {
     private boolean unlockDelay(final MessageQueue mq, final ProcessQueue pq) {
 
         if (pq.hasTempMessage()) {
+            //如果有消息还没有处理 每20s 通知broker把当前messageQueue unlock
             log.info("[{}]unlockDelay, begin {} ", mq.hashCode(), mq);
             this.defaultMQPushConsumerImpl.getmQClientFactory().getScheduledExecutorService().schedule(new Runnable() {
                 @Override
@@ -122,6 +134,7 @@ public class RebalancePushImpl extends RebalanceImpl {
                 }
             }, UNLOCK_DELAY_TIME_MILLS, TimeUnit.MILLISECONDS);
         } else {
+            //没有消息
             this.unlock(mq, true);
         }
         return true;
@@ -147,12 +160,13 @@ public class RebalancePushImpl extends RebalanceImpl {
             case CONSUME_FROM_MIN_OFFSET:
             case CONSUME_FROM_MAX_OFFSET:
             case CONSUME_FROM_LAST_OFFSET: {
-                //
+                //local 从本地文件读取
+                //remote 去nameserver读取
                 long lastOffset = offsetStore.readOffset(mq, ReadOffsetType.READ_FROM_STORE);
                 if (lastOffset >= 0) {
                     result = lastOffset;
                 }
-                // First start,no offset
+                // 如果不存在 去broker取最大offset
                 else if (-1 == lastOffset) {
                     if (mq.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
                         result = 0L;

@@ -85,6 +85,7 @@ public class ProcessQueue {
             try {
                 this.lockTreeMap.readLock().lockInterruptibly();
                 try {
+                    //如果第一个消息距离这个消息被consume拉取过来的时间大于15min 取出第一个message （每次取出一个message readLock）
                     if (!msgTreeMap.isEmpty() && System.currentTimeMillis() - Long.parseLong(MessageAccessor.getConsumeStartTimeStamp(msgTreeMap.firstEntry().getValue())) > pushConsumer.getConsumeTimeout() * 60 * 1000) {
                         msg = msgTreeMap.firstEntry().getValue();
                     } else {
@@ -100,6 +101,8 @@ public class ProcessQueue {
 
             try {
 
+                //首先尝试把消息发回message原来的broker使用vipChannel  RequestCode.CONSUMER_SEND_MSG_BACK
+                //如果出现异常 就随机发送给topic下的其他broker 跟正常producer发送消息的逻辑相同
                 pushConsumer.sendMessageBack(msg, 3);
                 log.info("send expire msg back. topic={}, msgId={}, storeHost={}, queueId={}, queueOffset={}", msg.getTopic(), msg.getMsgId(), msg.getStoreHost(), msg.getQueueId(), msg.getQueueOffset());
                 try {
@@ -107,6 +110,7 @@ public class ProcessQueue {
                     try {
                         if (!msgTreeMap.isEmpty() && msg.getQueueOffset() == msgTreeMap.firstKey()) {
                             try {
+                                //把这个消息从processQueue内部的msgTreeMap移除
                                 removeMessage(Collections.singletonList(msg));
                             } catch (Exception e) {
                                 log.error("send expired msg exception", e);

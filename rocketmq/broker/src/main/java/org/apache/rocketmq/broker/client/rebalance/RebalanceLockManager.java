@@ -102,8 +102,10 @@ public class RebalanceLockManager {
         if (groupValue != null) {
             LockEntry lockEntry = groupValue.get(mq);
             if (lockEntry != null) {
+                //clientid 相等 并且没有过期（过期时间1min）
                 boolean locked = lockEntry.isLocked(clientId);
                 if (locked) {
+                    //更新上次加锁时间
                     lockEntry.setLastUpdateTimestamp(System.currentTimeMillis());
                 }
 
@@ -114,11 +116,13 @@ public class RebalanceLockManager {
         return false;
     }
 
+    //锁住 返回的是上锁的messageQueue  更新mqLockTable
     public Set<MessageQueue> tryLockBatch(final String group, final Set<MessageQueue> mqs,
         final String clientId) {
         Set<MessageQueue> lockedMqs = new HashSet<MessageQueue>(mqs.size());
         Set<MessageQueue> notLockedMqs = new HashSet<MessageQueue>(mqs.size());
 
+        //统计出当前gorup下的client已经上锁的messageQueue和没有上锁的messageQueue
         for (MessageQueue mq : mqs) {
             if (this.isLocked(group, mq, clientId)) {
                 lockedMqs.add(mq);
@@ -127,6 +131,9 @@ public class RebalanceLockManager {
             }
         }
 
+        //尝试把没有上锁的messageQueue上锁
+        //1.如果没有被上锁或者锁过期 重新上锁或者加锁
+        //2.如果被group下的其他clientId上锁 那么不会再上锁
         if (!notLockedMqs.isEmpty()) {
             try {
                 this.lock.lockInterruptibly();
@@ -189,6 +196,7 @@ public class RebalanceLockManager {
         return lockedMqs;
     }
 
+    //解锁
     public void unlockBatch(final String group, final Set<MessageQueue> mqs, final String clientId) {
         try {
             this.lock.lockInterruptibly();

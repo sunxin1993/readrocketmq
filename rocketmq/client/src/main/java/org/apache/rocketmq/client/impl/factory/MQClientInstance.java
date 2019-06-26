@@ -222,6 +222,7 @@ public class MQClientInstance {
         return mqList;
     }
 
+    //同时有生产者和消费者逻辑
     public void start() throws MQClientException {
 
         synchronized (this) {
@@ -267,10 +268,10 @@ public class MQClientInstance {
                     // Start pull service
                     //pullMessageService的pullRequestQueue获取PullRequest
                     //根据pullRequest里面的offset去broker拉取消息
-                    //todo
+                    //提交给consumeMessageService
                     this.pullMessageService.start();
                     // Start rebalance service 后续解析
-                    //todo
+                    //todo 消费者逻辑
                     this.rebalanceService.start();
                     // Start push service
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
@@ -321,6 +322,7 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
+                    //清理下线的broker
                     MQClientInstance.this.cleanOfflineBroker();
                     MQClientInstance.this.sendHeartbeatToAllBrokerWithLock();
                 } catch (Exception e) {
@@ -458,7 +460,8 @@ public class MQClientInstance {
                     continue;
                 }
                 // may need to check one broker every cluster...
-                // assume that the configs of every broker in cluster are the the same.
+                // assume that the configs of every broker in cluster are the the same
+                // 随机获取topic下的一个broker.
                 String addr = findBrokerAddrByTopic(subscriptionData.getTopic());
 
                 if (addr != null) {
@@ -994,6 +997,7 @@ public class MQClientInstance {
         this.adminExtTable.remove(group);
     }
 
+    //唤醒rebalanceService
     public void rebalanceImmediately() {
         this.rebalanceService.wakeup();
     }

@@ -437,6 +437,7 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    //conusmer顺序消费需要lock
     private RemotingCommand lockBatchMQ(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
