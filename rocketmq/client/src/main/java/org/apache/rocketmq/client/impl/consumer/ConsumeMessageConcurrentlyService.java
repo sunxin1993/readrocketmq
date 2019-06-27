@@ -212,7 +212,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         if (msgs.size() <= consumeBatchSize) {
             ConsumeRequest consumeRequest = new ConsumeRequest(msgs, processQueue, messageQueue);
             try {
-                // core 20 max 64  线程池调度 调度执行run方法
+                // core 20 max 64  线程池调度 调度执行run方法 这块就是异步多线程执行 消息构成请求后 就会直接发起下一次请求 不用等本地消费完毕
+              //包括所有拉取过来的message
                 this.consumeExecutor.submit(consumeRequest);
             } catch (RejectedExecutionException e) {
                 //5s之后调度执行 run
@@ -302,7 +303,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
         switch (this.defaultMQPushConsumer.getMessageModel()) {
             case BROADCASTING:
-                //广播模式 帖子drop 不做处理
+                //广播模式  对消费失败的message不做处理
                 for (int i = ackIndex + 1; i < consumeRequest.getMsgs().size(); i++) {
                     MessageExt msg = consumeRequest.getMsgs().get(i);
                     log.warn("BROADCASTING, the message consume failed, drop it, {}", msg.toString());
@@ -332,10 +333,11 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 break;
         }
 
+        //从msgTreeMap里面移除本次消费的所有消息 不论消费成功还是失败
         //返回本次消费的偏移量
         long offset = consumeRequest.getProcessQueue().removeMessage(consumeRequest.getMsgs());
         if (offset >= 0 && !consumeRequest.getProcessQueue().isDropped()) {
-            //如果移除成功 更新offsetTable 里面的消费偏移量
+            //如果移除成功 更新offsetTable  当前messageQueue里面的消费偏移量
             this.defaultMQPushConsumerImpl.getOffsetStore().updateOffset(consumeRequest.getMessageQueue(), offset, true);
         }
     }
@@ -407,7 +409,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         @Override
 
 
-        //消费消息
+        //乱序消费消息
         public void run() {
             if (this.processQueue.isDropped()) {
                 log.info("the message queue not be able to consume, because it's dropped. group={} {}", ConsumeMessageConcurrentlyService.this.consumerGroup, this.messageQueue);

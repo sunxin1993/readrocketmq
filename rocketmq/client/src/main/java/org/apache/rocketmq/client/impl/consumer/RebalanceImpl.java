@@ -343,6 +343,7 @@ public abstract class RebalanceImpl {
     }
 
     //mqset代表可以处理的所有的messageQueue
+    //都是通过默认的分配策略分配的
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet,
         final boolean isOrder) {
         boolean changed = false;
@@ -362,7 +363,7 @@ public abstract class RebalanceImpl {
                     //================================clusting order==================
                     //1.把对应的消费offset发送给master broker 通知broker更新消费offset
                     //2.offsetTable移除不能消耗的messageQueue
-                    /*尝试获取processQueue的lockConsume即消费锁
+                    /*尝试获取processQueue的lockConsume即消费锁 如果在消费的过程中会锁住 获取不到说明当前队列仍在消费中
                     *3.如果获取成功 查看当前processQueue是否还有未处理的消息
                     * 3.1 如果有消息  20s后尝试通知broker unlock当前messageQueue的全局锁
                     * 3.2 如果没有消息 通知一次broker unlock全局锁

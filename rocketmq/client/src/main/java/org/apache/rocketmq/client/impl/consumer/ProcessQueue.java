@@ -75,6 +75,7 @@ public class ProcessQueue {
      * @param pushConsumer
      */
     public void cleanExpiredMsg(DefaultMQPushConsumer pushConsumer) {
+        //顺序消费不会删除
         if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {
             return;
         }
@@ -191,7 +192,7 @@ public class ProcessQueue {
     }
 
     //移除已经成功处理过后的消息
-    // 如果移除后不为空 返回的值是移除后最小的offset
+    //如果移除后不为空 返回的值是移除后最小的offset
     //如果为空 返回的值为移除前最大的offset+1
     //移除失败 返回-1
     public long removeMessage(final List<MessageExt> msgs) {
@@ -269,6 +270,7 @@ public class ProcessQueue {
         }
     }
 
+    //顺序消费成功之后  根据onsumingMsgOrderlyTreeMap获取最新的消费进度
     public long commit() {
         try {
             this.lockTreeMap.writeLock().lockInterruptibly();
@@ -278,6 +280,7 @@ public class ProcessQueue {
                 for (MessageExt msg : this.consumingMsgOrderlyTreeMap.values()) {
                     msgSize.addAndGet(0 - msg.getBody().length);
                 }
+                //消费成功后把consumingMsgOrderlyTreeMap清空
                 this.consumingMsgOrderlyTreeMap.clear();
                 if (offset != null) {
                     return offset + 1;
@@ -292,11 +295,13 @@ public class ProcessQueue {
         return -1;
     }
 
+    //重新消费
     public void makeMessageToCosumeAgain(List<MessageExt> msgs) {
         try {
             this.lockTreeMap.writeLock().lockInterruptibly();
             try {
                 for (MessageExt msg : msgs) {
+                    //这条从consumingMsgOrderlyTreeMap消息移除
                     this.consumingMsgOrderlyTreeMap.remove(msg.getQueueOffset());
                     this.msgTreeMap.put(msg.getQueueOffset(), msg);
                 }
@@ -308,6 +313,7 @@ public class ProcessQueue {
         }
     }
 
+
     public List<MessageExt> takeMessags(final int batchSize) {
         List<MessageExt> result = new ArrayList<MessageExt>(batchSize);
         final long now = System.currentTimeMillis();
@@ -317,9 +323,11 @@ public class ProcessQueue {
             try {
                 if (!this.msgTreeMap.isEmpty()) {
                     for (int i = 0; i < batchSize; i++) {
+                         //从msgTreeMap移除 消费失败后需要重试消费的会重新放入
                         Map.Entry<Long, MessageExt> entry = this.msgTreeMap.pollFirstEntry();
                         if (entry != null) {
                             result.add(entry.getValue());
+                            //取出来的消息放在consumingMsgOrderlyTreeMap
                             consumingMsgOrderlyTreeMap.put(entry.getKey(), entry.getValue());
                         } else {
                             break;
