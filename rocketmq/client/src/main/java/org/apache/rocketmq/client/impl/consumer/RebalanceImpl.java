@@ -167,6 +167,7 @@ public abstract class RebalanceImpl {
     }
 
     public void lockAll() {
+        //当前正在消费的brokerName下的messageQueue
         HashMap<String, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
         Iterator<Entry<String, Set<MessageQueue>>> it = brokerMqs.entrySet().iterator();
@@ -187,7 +188,8 @@ public abstract class RebalanceImpl {
                 requestBody.setMqSet(mqs);
 
                 try {
-                    //去broker上尝试lock当前messageQueue
+                    //去broker上找到当前group下的clientId可以锁住的MessageQueue broker端锁过期时间为1min 如果1分钟没有发起lock请求
+                    // 那么就会被group下的其他clientId lock住
                     Set<MessageQueue> lockOKMQSet =
                         this.mQClientFactory.getMQClientAPIImpl().lockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000);
 
@@ -198,7 +200,7 @@ public abstract class RebalanceImpl {
                                 log.info("the message queue locked OK, Group: {} {}", this.consumerGroup, mq);
                             }
 
-                            //对应的 processQueue lock
+                            //对应的 processQueue lock住 lock住代表broker端的messageQueue已经被当前client锁住 可以继续拉取消息
                             processQueue.setLocked(true);
                             processQueue.setLastLockTimestamp(System.currentTimeMillis());
                         }
@@ -207,7 +209,7 @@ public abstract class RebalanceImpl {
                         if (!lockOKMQSet.contains(mq)) {
                             ProcessQueue processQueue = this.processQueueTable.get(mq);
                             if (processQueue != null) {
-                                //没有锁住的processQueue unlock
+                                //没有锁住的processQueue   表示不可以消费
                                 processQueue.setLocked(false);
                                 log.warn("the message queue locked Failed, Group: {} {}", this.consumerGroup, mq);
                             }
@@ -314,6 +316,7 @@ public abstract class RebalanceImpl {
                             "rebalanced result changed. allocateMessageQueueStrategyName={}, group={}, topic={}, clientId={}, mqAllSize={}, cidAllSize={}, rebalanceResultSize={}, rebalanceResultSet={}",
                             strategy.getName(), consumerGroup, topic, this.mQClientFactory.getClientId(), mqSet.size(), cidAll.size(),
                             allocateResultSet.size(), allocateResultSet);
+                       //通知新的订阅信息到broker
                         this.messageQueueChanged(topic, mqSet, allocateResultSet);
                     }
                 }
@@ -377,6 +380,7 @@ public abstract class RebalanceImpl {
 
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                      //除了push下的order模式 都会从processQueueTable移除 但是会设置drop 并且通知broker unlock
+                       //如果有没处理的消息会移除
                         it.remove();
                         changed = true;
                         log.info("doRebalance, {}, remove unnecessary mq, {}", consumerGroup, mq);
@@ -408,7 +412,7 @@ public abstract class RebalanceImpl {
         for (MessageQueue mq : mqSet) {
             //如果是新加入的messageQueue
             if (!this.processQueueTable.containsKey(mq)) {
-                //如果是有序的   并且在broker端没有被当前conusmer lock 那么就不会主动消费
+                //如果是有序的   并且在broker端没有被当前conusmer lock 那么就不会主动消费 不会放入processQueueTable
                 if (isOrder && !this.lock(mq)) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;

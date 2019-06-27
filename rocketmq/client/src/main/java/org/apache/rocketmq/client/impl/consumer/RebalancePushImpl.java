@@ -96,7 +96,7 @@ public class RebalancePushImpl extends RebalanceImpl {
         if (this.defaultMQPushConsumerImpl.isConsumeOrderly()
             && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
             try {
-                //尝试锁住processQueue
+                //尝试锁住processQueue 正在移除的时候锁住消费锁 不可消费
                 //lock的方法在ConsumeMessageOrderlyService消费消息会lock 如果没有try成功 可能还在有序消费中
                 if (pq.getLockConsume().tryLock(1000, TimeUnit.MILLISECONDS)) {
                     try {

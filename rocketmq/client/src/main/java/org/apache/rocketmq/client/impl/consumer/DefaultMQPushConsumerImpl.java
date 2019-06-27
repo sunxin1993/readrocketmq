@@ -262,7 +262,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 return;
             }
         } else {
-            //todo 顺序消费  判断 isLocked
+            // 顺序消费  判断 isLocked 可以拉取
             // 初始值为fasle
             if (processQueue.isLocked()) {
                 //默认值为false
@@ -282,7 +282,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     pullRequest.setNextOffset(offset);
                 }
             } else {
-                //50ms later  使用scheduledExecutorService实现延迟处理
+                //3s later  使用scheduledExecutorService实现延迟处理
                 this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_EXCEPTION);
                 log.info("pull message later because not locked in broker, {}", pullRequest);
                 return;
@@ -645,8 +645,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         new ConsumeMessageConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
 
-                //ConcurrentlyService   每15min执行一次  cleanExpireMsg();
-                //OrderlyService 如果是cluster模式 每20s执行一次 RebalanceImpl的lockAll
+                //ConcurrentlyService   每15min执行一次  cleanExpireMsg(); 清理treeMap里面过期的消息 发回给broker
+                //OrderlyService 如果是cluster模式 每20s执行一次 RebalanceImpl的lockAll 更新processQueue的lock属性
                 this.consumeMessageService.start();
 
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
