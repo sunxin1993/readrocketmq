@@ -36,8 +36,8 @@ public class FilterAPI {
         return simple;
     }
 
-    //构建过滤规则
-    public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic,
+    //构建过滤规则  tagType
+    public static SubscriptionData buildSubscriptionData( String topic,
         String subString) throws Exception {
         SubscriptionData subscriptionData = new SubscriptionData();
         subscriptionData.setTopic(topic);
@@ -47,6 +47,7 @@ public class FilterAPI {
 //默认是"*"
             subscriptionData.setSubString(SubscriptionData.SUB_ALL);
         } else {
+            // || 代表或 表示订阅多个tag
             String[] tags = subString.split("\\|\\|");
             if (tags.length > 0) {
                 for (String tag : tags) {
@@ -70,7 +71,7 @@ public class FilterAPI {
     public static SubscriptionData build(final String topic, final String subString,
         final String type) throws Exception {
         if (ExpressionType.TAG.equals(type) || type == null) {
-            return buildSubscriptionData(null, topic, subString);
+            return buildSubscriptionData( topic, subString);
         }
 
         if (subString == null || subString.length() < 1) {

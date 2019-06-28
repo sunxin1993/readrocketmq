@@ -103,7 +103,7 @@ public class PullMessageProcessor implements NettyRequestProcessor {
             return response;
         }
 
-        //订阅组信息不存在 拉取信息前注册订阅组
+        //订阅组信息不存在
         SubscriptionGroupConfig subscriptionGroupConfig =
             this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(requestHeader.getConsumerGroup());
         if (null == subscriptionGroupConfig) {
@@ -119,11 +119,15 @@ public class PullMessageProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        //true
         final boolean hasSuspendFlag = PullSysFlag.hasSuspendFlag(requestHeader.getSysFlag());
+       //master 如果offsetTable有记录 那么是true
+        //slave fasle
         final boolean hasCommitOffsetFlag = PullSysFlag.hasCommitOffsetFlag(requestHeader.getSysFlag());
+        //根据是否有filter sql 或者tag filter
         final boolean hasSubscriptionFlag = PullSysFlag.hasSubscriptionFlag(requestHeader.getSysFlag());
 
-        //15s
+        //默认15s
         final long suspendTimeoutMillisLong = hasSuspendFlag ? requestHeader.getSuspendTimeoutMillis() : 0;
 
         //topic信息是否存在
@@ -152,13 +156,16 @@ public class PullMessageProcessor implements NettyRequestProcessor {
 
         SubscriptionData subscriptionData = null;
         ConsumerFilterData consumerFilterData = null;
+        //上面的都是各种校验合法性的逻辑
+
         //有过滤
         if (hasSubscriptionFlag) {
             try {
+                //构建tagType set来存储订阅的tag和tagHashCode
                 subscriptionData = FilterAPI.build(
                     requestHeader.getTopic(), requestHeader.getSubscription(), requestHeader.getExpressionType()
                 );
-                //如果不是tagType 是sqlType   a between 0 and 3 构建consumerFilterData
+                //如果是sqlType
                 if (!ExpressionType.isTagType(subscriptionData.getExpressionType())) {
                     consumerFilterData = ConsumerFilterManager.build(
                         requestHeader.getTopic(), requestHeader.getConsumerGroup(), requestHeader.getSubscription(),
@@ -233,12 +240,11 @@ public class PullMessageProcessor implements NettyRequestProcessor {
         }
 
         MessageFilter messageFilter;
+        //默认为fasle
         if (this.brokerController.getBrokerConfig().isFilterSupportRetry()) {
             messageFilter = new ExpressionForRetryMessageFilter(subscriptionData, consumerFilterData,
                 this.brokerController.getConsumerFilterManager());
         } else {
-            //todo 20190623  构建messageFilter
-
             messageFilter = new ExpressionMessageFilter(subscriptionData, consumerFilterData,
                 this.brokerController.getConsumerFilterManager());
         }

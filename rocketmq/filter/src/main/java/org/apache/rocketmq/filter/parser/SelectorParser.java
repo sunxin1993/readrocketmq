@@ -42,6 +42,8 @@ public class SelectorParser implements SelectorParserConstants {
     private static final Cache<String, Object> PARSE_CACHE = CacheBuilder.newBuilder().maximumSize(100).build();
     //    private static final String CONVERT_STRING_EXPRESSIONS_PREFIX = "convert_string_expressions:";
 
+
+    //sql转换器
     public static BooleanExpression parse(String sql) throws MQFilterException {
         //        sql = "("+sql+")";
         Object result = PARSE_CACHE.getIfPresent(sql);
@@ -87,6 +89,7 @@ public class SelectorParser implements SelectorParserConstants {
         this(new StringReader(sql));
         this.sql = sql;
     }
+
 
     protected BooleanExpression parse() throws MQFilterException {
         try {

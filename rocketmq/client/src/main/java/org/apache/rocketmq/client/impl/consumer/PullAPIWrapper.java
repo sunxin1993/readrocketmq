@@ -139,6 +139,7 @@ public class PullAPIWrapper {
         }
     }
 
+    //核心拉取消息代码
     public PullResult pullKernelImpl(
         final MessageQueue mq,
         final String subExpression,
@@ -153,7 +154,7 @@ public class PullAPIWrapper {
         final CommunicationMode communicationMode,
         final PullCallback pullCallback
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-        //找到一个broker address
+        //找到一个broker address 优先找master节点 如果master节点下线 选择slave
         FindBrokerResult findBrokerResult =
             this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(),
                 this.recalculatePullFromWhichNode(mq), false);
@@ -177,7 +178,7 @@ public class PullAPIWrapper {
             int sysFlagInner = sysFlag;
 
             //如果找到的是slave clearCommitOffsetFlag
-            //todo why clearCommitOffsetFlag
+            //todo why clearCommitOffsetFlag  难道是slave节点不需要消费者上报消费offset
             if (findBrokerResult.isSlave()) {
                 sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
             }
@@ -197,8 +198,7 @@ public class PullAPIWrapper {
 
             String brokerAddr = findBrokerResult.getBrokerAddr();
             if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {
-                //如果是master
-                //todo
+                //如果有classFilter 那么要找到一个支持classFilter的broker
                 brokerAddr = computPullFromWhichFilterServer(mq.getTopic(), brokerAddr);
             }
 

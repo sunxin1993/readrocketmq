@@ -74,6 +74,7 @@ public class ConsumerFilterManager extends ConfigManager {
      *
      * @return maybe null
      */
+    //sql过滤方式
     public static ConsumerFilterData build(final String topic, final String consumerGroup,
         final String expression, final String type,
         final long clientVersion) {
@@ -88,6 +89,7 @@ public class ConsumerFilterManager extends ConfigManager {
         consumerFilterData.setDeadTime(0);
         consumerFilterData.setExpression(expression);
         consumerFilterData.setExpressionType(type);
+        //时间戳
         consumerFilterData.setClientVersion(clientVersion);
         try {
             consumerFilterData.setCompiledExpression(

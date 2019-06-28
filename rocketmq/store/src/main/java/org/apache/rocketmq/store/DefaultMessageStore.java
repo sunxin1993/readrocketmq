@@ -531,7 +531,7 @@ public class DefaultMessageStore implements MessageStore {
         if (consumeQueue != null) {
             minOffset = consumeQueue.getMinOffsetInQueue();
             maxOffset = consumeQueue.getMaxOffsetInQueue();
-             //consumeQueue还没有写入message 如果是master nextBeginOffset=minOffset
+             //consumeQueue还没有写入message 如果是master nextBeginOffset=0 就是后者
             if (maxOffset == 0) {
                 status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
                 nextBeginOffset = nextOffsetCorrection(offset, 0);
@@ -559,7 +559,7 @@ public class DefaultMessageStore implements MessageStore {
                         long maxPhyOffsetPulling = 0;
 
                         int i = 0;
-                        //最大过滤16000个byte的记录 客户端默认是30*20
+                        //最大过滤16000个byte的记录 consumer传过来的参数默认是30*20
                         final int maxFilterMessageCount = Math.max(16000, maxMsgNums * ConsumeQueue.CQ_STORE_UNIT_SIZE);
                         //default rue
                         final boolean diskFallRecorded = this.messageStoreConfig.isDiskFallRecorded();
@@ -575,12 +575,12 @@ public class DefaultMessageStore implements MessageStore {
                                 if (offsetPy < nextPhyFileStartOffset)
                                     continue;
                             }
-                            //todo how  ？？？？
                             //暂时的判定方式是 跟在commitLog里面写入mappedFile的最大内存offset差距是否大于总的可用物理内存的0.4 如果大于 认为在disk
                             //如果在disk 单次传输的消息数量和总字节数限制的比较小
+                            //也就是mq设置的是如果消息的总大小大于内存的40% 就会被交换到硬盘
                             boolean isInDisk = checkInDiskByCommitOffset(offsetPy, maxOffsetPy);
 
-                            //是否超过一次可以传输的最大量
+                            //是否已经超过一次可以传输的最大量 那么就不再继续去commitLog获取消息
                             if (this.isTheBatchFull(sizePy, maxMsgNums, getResult.getBufferTotalSize(), getResult.getMessageCount(),
                                 isInDisk)) {
                                 break;
@@ -589,7 +589,7 @@ public class DefaultMessageStore implements MessageStore {
                             boolean extRet = false, isTagsCodeLegal = true;
                             //是否有效 true   是否小于Integer.MIN_VALUE - 1L
                             if (consumeQueue.isExtAddr(tagsCode)) {
-                                //todo
+                                //fasle
                                 extRet = consumeQueue.getExt(tagsCode, cqExtUnit);
                                 if (extRet) {
                                     tagsCode = cqExtUnit.getTagsCode();
@@ -671,6 +671,7 @@ public class DefaultMessageStore implements MessageStore {
             }
         } else {
             status = GetMessageStatus.NO_MATCHED_LOGIC_QUEUE;
+            //master 是0   slave情况是offset 因为有可能是slave还没有把数据从master同步过来
             nextBeginOffset = nextOffsetCorrection(offset, 0);
         }
 

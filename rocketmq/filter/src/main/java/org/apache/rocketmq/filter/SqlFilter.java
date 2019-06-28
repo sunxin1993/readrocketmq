@@ -31,6 +31,7 @@ import org.apache.rocketmq.filter.parser.SelectorParser;
  */
 public class SqlFilter implements FilterSpi {
 
+    //转换sql过滤
     @Override
     public Expression compile(final String expr) throws MQFilterException {
         return SelectorParser.parse(expr);

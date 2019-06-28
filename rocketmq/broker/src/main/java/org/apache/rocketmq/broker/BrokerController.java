@@ -881,6 +881,7 @@ public class BrokerController {
 
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
             startProcessorByHa(messageStoreConfig.getBrokerRole());
+            //定时同步主节点各个消费组的消费进度 topicConfig 等主节点信息
             handleSlaveSynchronize(messageStoreConfig.getBrokerRole());
         }
 
