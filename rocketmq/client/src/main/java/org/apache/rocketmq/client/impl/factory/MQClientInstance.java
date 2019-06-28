@@ -259,7 +259,8 @@ public class MQClientInstance {
 
                     //每5s把每个messageQueue对应的消费进度持久化
 
-                    //todo 每1分钟
+                    //每1分钟 调整无序消费service下面的consumeExecutor的核心线程池数目 根据剩余的消息数目跟阀值默认10万 对比
+                    //但是看现有的代码已经注释掉了
                     /*DefaultMQPushConsumerImpl dmq = (DefaultMQPushConsumerImpl) impl;
                     dmq.adjustThreadPool();*/
 

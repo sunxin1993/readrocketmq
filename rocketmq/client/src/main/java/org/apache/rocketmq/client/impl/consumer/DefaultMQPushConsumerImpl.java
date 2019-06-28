@@ -1143,18 +1143,26 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     public void adjustThreadPool() {
+        //当前消费者下面所有processQueue的消息总条数
         long computeAccTotal = this.computeAccumulationTotal();
+        //默认是10万
         long adjustThreadPoolNumsThreshold = this.defaultMQPushConsumer.getAdjustThreadPoolNumsThreshold();
 
+        //10万
         long incThreshold = (long) (adjustThreadPoolNumsThreshold * 1.0);
-
+//8万
         long decThreshold = (long) (adjustThreadPoolNumsThreshold * 0.8);
 
+        //只针对无序消费
+
+//消息条数对比
+        //如果大于10万 增加consumeExecutor核心线程数目 加快消费速度
         if (computeAccTotal >= incThreshold) {
             this.consumeMessageService.incCorePoolSize();
         }
 
         if (computeAccTotal < decThreshold) {
+            //否则减少consumeExecutor核心线程数目 减少线程开销
             this.consumeMessageService.decCorePoolSize();
         }
     }
