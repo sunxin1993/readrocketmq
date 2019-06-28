@@ -59,6 +59,7 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     private ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
 
+    //处理prepare消息
     @Override
     public PutMessageResult prepareMessage(MessageExtBrokerInner messageInner) {
         return transactionalMessageBridge.putHalfMessage(messageInner);

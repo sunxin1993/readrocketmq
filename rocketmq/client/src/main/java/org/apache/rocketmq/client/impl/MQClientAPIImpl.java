@@ -913,6 +913,8 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    //处理事务 rollback或者commit
+
     public void endTransactionOneway(
         final String addr,
         final EndTransactionRequestHeader requestHeader,

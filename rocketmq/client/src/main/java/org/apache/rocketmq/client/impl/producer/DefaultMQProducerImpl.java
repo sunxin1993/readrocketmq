@@ -139,11 +139,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             checkForbiddenHookList.size());
     }
 
+    //启动时初始化事务环境
     public void initTransactionEnv() {
         TransactionMQProducer producer = (TransactionMQProducer) this.defaultMQProducer;
         if (producer.getExecutorService() != null) {
             this.checkExecutor = producer.getExecutorService();
         } else {
+            //默认2000
             this.checkRequestQueue = new LinkedBlockingQueue<Runnable>(producer.getCheckRequestHoldMax());
             this.checkExecutor = new ThreadPoolExecutor(
                 producer.getCheckThreadPoolMinSize(),
@@ -732,6 +734,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 //for MessageBatch,ID has been set in the generating process
                 //todo 暂时没看 MessageBatch是message一种特殊形式
                 if (!(msg instanceof MessageBatch)) {
+                    //每个消息都会设置一个全局不重复的uniqueid
                     MessageClientIDSetter.setUniqID(msg);
                 }
 
@@ -795,7 +798,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 requestHeader.setReconsumeTimes(0);
                 requestHeader.setUnitMode(this.isUnitMode());
                 requestHeader.setBatch(msg instanceof MessageBatch);
-                //todo
+                //如果是消费失败重新发回broker的消息 把PROPERTY_RECONSUME_TIME 清空 为null
                 if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
                     String reconsumeTimes = MessageAccessor.getReconsumeTime(msg);
                     if (reconsumeTimes != null) {
@@ -1183,6 +1186,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
     }
 
+    //发送事务消息
     public TransactionSendResult sendMessageInTransaction(final Message msg,
                                                           final LocalTransactionExecuter localTransactionExecuter, final Object arg)
         throws MQClientException {
@@ -1190,10 +1194,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (null == localTransactionExecuter && null == transactionListener) {
             throw new MQClientException("tranExecutor is null", null);
         }
+        //消息检验
         Validators.checkMessage(msg, this.defaultMQProducer);
 
         SendResult sendResult = null;
+        //prepare
         MessageAccessor.putProperty(msg, MessageConst.PROPERTY_TRANSACTION_PREPARED, "true");
+       //事务所属producerGroup
         MessageAccessor.putProperty(msg, MessageConst.PROPERTY_PRODUCER_GROUP, this.defaultMQProducer.getProducerGroup());
         try {
             sendResult = this.send(msg);
@@ -1244,6 +1251,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
 
         try {
+            //根据处理之后的状态更新broker上的消息
             this.endTransaction(sendResult, localTransactionState, localException);
         } catch (Exception e) {
             log.warn("local transaction execute " + localTransactionState + ", but end broker transaction failed", e);
@@ -1272,12 +1280,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         final LocalTransactionState localTransactionState,
         final Throwable localException) throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {
         final MessageId id;
+        //id值
         if (sendResult.getOffsetMsgId() != null) {
             id = MessageDecoder.decodeMessageId(sendResult.getOffsetMsgId());
         } else {
             id = MessageDecoder.decodeMessageId(sendResult.getMsgId());
         }
+        //事务id
         String transactionId = sendResult.getTransactionId();
+        //主节点
         final String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(sendResult.getMessageQueue().getBrokerName());
         EndTransactionRequestHeader requestHeader = new EndTransactionRequestHeader();
         requestHeader.setTransactionId(transactionId);
